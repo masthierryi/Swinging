@@ -1,2 +1,2 @@
-# MastScoutTFT
-Scout like a pro with no effort
+# Swinging
+Learning and testing
