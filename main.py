@@ -1,150 +1,124 @@
-import tkinter as tk
-from tkinter import font
+import math
 
-# ===================================================================
-# --- CONFIGURAÇÃO DA PARTIDA ---
-# Altere os dados para o seu jogo.
-# ===================================================================
+# =============================================================================
+# FUNÇÃO PARA CÁLCULO DE DIMENSIONAMENTO DE POSIÇÃO
+# =============================================================================
 
-NOMES_LOBBY = [
-    "masthierry",    # Jogador 1
-    "barteles",      # Jogador 2
-    "gabrilao",      # Jogador 3
-    "Teeboo",        # Jogador 4
-    "vulgo pinto",   # Jogador 5
-    "Tzk pj",        # Jogador 6
-    "ExCaraVelho",   # Jogador 7
-    "fagnin",        # Jogador 8
-]
+def calcular_tamanho_posicao(capital_total, risco_por_trade_percentual, preco_entrada, preco_stop, tipo_operacao, nome_ativo):
+    """
+    Calcula o tamanho da posição (quantidade de ações/contratos) com base
+    no gerenciamento de risco definido.
 
-MEU_NUMERO = 1
+    Args:
+        capital_total (float): O valor total do seu capital operacional.
+        risco_por_trade_percentual (float): O risco aceitável em porcentagem (ex: 1 para 1%).
+        preco_entrada (float): O preço de entrada na operação.
+        preco_stop (float): O preço do stop-loss.
+        tipo_operacao (str): 'compra' ou 'venda'.
+        nome_ativo (str): O nome do ativo para fins de exibição.
+    """
+    print(f"--- Análise de Risco para: {nome_ativo} ({tipo_operacao.upper()}) ---")
+    print("-" * 50)
 
-# ===================================================================
-# --- LÓGICA DO PROGRAMA (Não precisa editar abaixo) ---
-# ===================================================================
+    # --- PASSO 1: Calcular o Risco Financeiro Máximo em Reais ---
+    risco_financeiro_maximo = capital_total * (risco_por_trade_percentual / 100.0)
 
-class TFTScoutApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("TFT Scout v2")
-        self.root.configure(bg='#202020')
+    # --- PASSO 2: Calcular o Risco por Ação ---
+    if tipo_operacao.lower() == 'compra':
+        risco_por_acao = preco_entrada - preco_stop
+    elif tipo_operacao.lower() == 'venda':
+        risco_por_acao = preco_stop - preco_entrada
+    else:
+        print("ERRO: Tipo de operação inválido. Use 'compra' ou 'venda'.")
+        return
 
-        self.posicoes = {
-            1: (0, 1), 2: (0, 2), 3: (1, 2), 4: (2, 2),
-            5: (2, 1), 6: (2, 0), 7: (1, 0), 8: (0, 0)
-        }
+    # Validação para garantir que o stop está posicionado corretamente
+    if risco_por_acao <= 0:
+        print(f"ERRO: Stop-loss inválido! Para uma {tipo_operacao}, o stop deve ser, respectivamente, menor/maior que a entrada.")
+        return
+
+    # --- PASSO 3: Calcular a Quantidade Ideal de Ações ---
+    # Evita divisão por zero, embora a validação anterior já ajude
+    if risco_por_acao == 0:
+        print("ERRO: Risco por ação é zero. Preço de entrada e stop não podem ser iguais.")
+        return
         
-        self.cores = {
-            "possivel": "#4CAF50", "enfrentado": "#607D8B", "eu": "#2196F3",
-            "eliminado": "#424242", "texto": "#FFFFFF", "eliminar_btn": "#c43737"
-        }
+    quantidade_ideal = risco_financeiro_maximo / risco_por_acao
+    # Arredondamos para baixo para garantir que nunca arriscaremos mais que o planejado
+    quantidade_a_operar = math.floor(quantidade_ideal)
+    
+    if quantidade_a_operar == 0:
+        print("AVISO: O risco por ação é muito alto para o seu capital. A quantidade de ações a operar é zero.")
+        return
 
-        self.inicializar_jogo()
-        self.criar_widgets()
-        self.atualizar_estado_geral()
+    # --- PASSO 4: Verificar a Viabilidade Financeira ---
+    custo_total_operacao = quantidade_a_operar * preco_entrada
+    operacao_viavel = custo_total_operacao <= capital_total
+    
+    # --- RESULTADOS ---
+    print(f"Capital Operacional Total: R$ {capital_total:,.2f}")
+    print(f"Risco Máximo por Trade: {risco_por_trade_percentual}% = R$ {risco_financeiro_maximo:,.2f}\n")
+    
+    print(f"Preço de Entrada: R$ {preco_entrada:.2f}")
+    print(f"Preço de Stop-Loss: R$ {preco_stop:.2f}")
+    print(f"Risco por Ação: R$ {risco_por_acao:.2f}\n")
+    
+    print(">>> RESULTADO DO CÁLCULO <<<")
+    print(f"Quantidade de Ações a Operar: {quantidade_a_operar}\n")
 
-    def inicializar_jogo(self):
-        self.jogadores = {i + 1: {"nome": nome, "vivo": True} for i, nome in enumerate(NOMES_LOBBY)}
-        self.ultimo_oponente = None
-        self.bag_de_oponentes_late_game = [] # Bag específica para o late game
+    print(f"Custo Financeiro da Operação: {quantidade_a_operar} ações * R$ {preco_entrada:.2f} = R$ {custo_total_operacao:,.2f}")
+    
+    if operacao_viavel:
+        print("Operação VIÁVEL (Custo da operação é menor que o capital total).\n")
+    else:
+        print("Operação INVIÁVEL (Custo da operação é maior que o capital total).\n")
 
-    def get_jogadores_vivos(self):
-        """Retorna uma lista com os números dos jogadores vivos."""
-        return [n for n, d in self.jogadores.items() if d["vivo"]]
+    perda_real_com_stop = quantidade_a_operar * risco_por_acao
+    print(f"CONFIRMAÇÃO: Se o stop for atingido, a perda será de R$ {perda_real_com_stop:,.2f} (dentro do seu limite de R$ {risco_financeiro_maximo:,.2f}).")
+    print("=" * 50 + "\n")
 
-    def criar_widgets(self):
-        self.botoes_principais = {}
-        self.botoes_eliminar = {}
-        container = tk.Frame(self.root, bg='#202020')
-        container.pack(padx=10, pady=10)
 
-        for i in range(3):
-            container.grid_rowconfigure(i, weight=1, minsize=110)
-            container.grid_columnconfigure(i, weight=1, minsize=120)
+# =============================================================================
+# DADOS DE ENTRADA (ALTERE OS VALORES AQUI)
+# =============================================================================
 
-        bold_font = font.Font(family="Helvetica", size=10, weight="bold")
-        
-        for num, dados in self.jogadores.items():
-            pos = self.posicoes[num]
-            
-            # Frame para cada "ilha" de jogador
-            ilha_frame = tk.Frame(container, bg='#333333', relief=tk.RAISED, borderwidth=2)
-            ilha_frame.grid(row=pos[0], column=pos[1], padx=5, pady=5, sticky="nsew")
-            
-            # Botão principal com o nome do jogador
-            botao_principal = tk.Button(
-                ilha_frame, text=dados['nome'], font=bold_font, fg=self.cores["texto"],
-                wraplength=110, command=lambda n=num: self.clique_enfrentei(n)
-            )
-            botao_principal.pack(expand=True, fill='both', padx=5, pady=5)
-            self.botoes_principais[num] = botao_principal
+# --- Configurações Gerais ---
+CAPITAL_OPERACIONAL_TOTAL = 36000.00
+RISCO_POR_TRADE_PERCENTUAL = 1.0  # 1% de risco sobre o capital total
 
-            # Botão 'X' para eliminar
-            botao_x = tk.Button(
-                ilha_frame, text="X", font=("Helvetica", 8, "bold"), bg=self.cores['eliminar_btn'],
-                fg='white', command=lambda n=num: self.eliminar_jogador(n),
-                relief=tk.FLAT, width=2, height=1
-            )
-            botao_x.place(relx=1.0, rely=0.0, anchor='ne')
-            self.botoes_eliminar[num] = botao_x
+# --- Cenário 1: Trade A (Compra), conforme a imagem ---
+ATIVO_A = "VALE3"
+TIPO_OPERACAO_A = "compra"
+PRECO_ENTRADA_A = 16.58
+PRECO_STOP_A = 16.38
 
-    def clique_enfrentei(self, num_jogador):
-        if num_jogador == MEU_NUMERO or not self.jogadores[num_jogador]["vivo"]:
-            return
+# --- Cenário 2: Trade B (Venda), conforme a imagem ---
+ATIVO_B = "PETR4"
+TIPO_OPERACAO_B = "venda"
+PRECO_ENTRADA_B = 10.15
+PRECO_STOP_B = 10.42
 
-        self.ultimo_oponente = num_jogador
-        self.atualizar_estado_geral()
-        
-    def eliminar_jogador(self, num_jogador):
-        if not self.jogadores[num_jogador]["vivo"]:
-            return
-            
-        self.jogadores[num_jogador]["vivo"] = False
-        print(f"Jogador {self.jogadores[num_jogador]['nome']} eliminado.")
-        self.atualizar_estado_geral()
 
-    def atualizar_estado_geral(self):
-        """Função central que recalcula oponentes e atualiza cores."""
-        jogadores_vivos = self.get_jogadores_vivos()
-        oponentes_vivos = [p for p in jogadores_vivos if p != MEU_NUMERO]
-        
-        possiveis_oponentes = []
+# =============================================================================
+# EXECUÇÃO DO PROGRAMA
+# =============================================================================
 
-        # LATE GAME: 4 ou menos jogadores vivos -> Lógica de Bag Estrita
-        if len(jogadores_vivos) <= 4:
-            # Se a bag está vazia ou o último oponente não está mais na bag (foi eliminado)
-            if not self.bag_de_oponentes_late_game or self.ultimo_oponente not in self.bag_de_oponentes_late_game:
-                self.bag_de_oponentes_late_game = [p for p in oponentes_vivos if p != self.ultimo_oponente]
-                print(f"--- LATE GAME: Bag Recarregada -> {self.bag_de_oponentes_late_game}")
-            
-            # Se o último oponente enfrentado está na bag, remova-o
-            if self.ultimo_oponente in self.bag_de_oponentes_late_game:
-                 self.bag_de_oponentes_late_game.remove(self.ultimo_oponente)
+# Calcula o dimensionamento para o Trade A
+calcular_tamanho_posicao(
+    capital_total=CAPITAL_OPERACIONAL_TOTAL,
+    risco_por_trade_percentual=RISCO_POR_TRADE_PERCENTUAL,
+    preco_entrada=PRECO_ENTRADA_A,
+    preco_stop=PRECO_STOP_A,
+    tipo_operacao=TIPO_OPERACAO_A,
+    nome_ativo=ATIVO_A
+)
 
-            possiveis_oponentes = self.bag_de_oponentes_late_game
-
-        # EARLY/MID GAME: Mais de 4 jogadores -> Lógica Simples
-        else:
-            possiveis_oponentes = [p for p in oponentes_vivos if p != self.ultimo_oponente]
-            self.bag_de_oponentes_late_game = [] # Reseta a bag do late game
-        
-        print(f"Oponentes Possíveis: {[self.jogadores[p]['nome'] for p in possiveis_oponentes]}")
-        self.atualizar_cores_botoes(possiveis_oponentes)
-
-    def atualizar_cores_botoes(self, possiveis_oponentes):
-        for num, botao in self.botoes_principais.items():
-            if not self.jogadores[num]["vivo"]:
-                botao.config(bg=self.cores["eliminado"], state=tk.DISABLED)
-                self.botoes_eliminar[num].config(state=tk.DISABLED, relief=tk.FLAT)
-            elif num == MEU_NUMERO:
-                botao.config(bg=self.cores["eu"], state=tk.DISABLED)
-                self.botoes_eliminar[num].config(state=tk.DISABLED, relief=tk.FLAT)
-            elif num in possiveis_oponentes:
-                botao.config(bg=self.cores["possivel"], state=tk.NORMAL)
-            else:
-                botao.config(bg=self.cores["enfrentado"], state=tk.NORMAL)
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = TFTScoutApp(root)
-    root.mainloop()
+# Calcula o dimensionamento para o Trade B
+calcular_tamanho_posicao(
+    capital_total=CAPITAL_OPERACIONAL_TOTAL,
+    risco_por_trade_percentual=RISCO_POR_TRADE_PERCENTUAL,
+    preco_entrada=PRECO_ENTRADA_B,
+    preco_stop=PRECO_STOP_B,
+    tipo_operacao=TIPO_OPERACAO_B,
+    nome_ativo=ATIVO_B
+)
